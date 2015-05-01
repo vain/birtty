@@ -1,5 +1,5 @@
-CFLAGS += -Wall -Wextra -O3 `pkg-config --cflags ncurses`
-LDLIBS += -lm `pkg-config --libs ncurses`
+CFLAGS += -Wall -Wextra -O3
+LDLIBS += -lm
 
 .PHONY: all clean
 all: b

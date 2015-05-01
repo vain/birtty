@@ -1,13 +1,21 @@
-#include <ncurses.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <strings.h>
+#include <string.h>
+#include <sys/ioctl.h>
 #include <sys/time.h>
+#include <termios.h>
 #include <unistd.h>
 
 
 struct game
 {
-    int fps;
+    struct display
+    {
+        int fps;
+        int width, height;
+        struct termios term_orig, term_raw;
+        char *data;
+    } display;
 
     struct timeval t;
 
@@ -33,50 +41,106 @@ struct game
     } world;
 };
 
-static void game_draw(struct game *, int, int);
-static void game_init(struct game *);
-static void game_input(struct game *, int);
-static void game_make_walls(struct game *);
-static void game_tick(struct game *);
+static void deinit(struct game *);
+static void draw(struct game *);
+static void erase(struct game *);
+static int getch(void);
+static void init(struct game *);
+static void input(struct game *, int);
+static void make_walls(struct game *);
+static void pixel(struct game *, int, int, char);
+static void resize_and_clear(struct game *);
+static void tick(struct game *);
 
 static double time_delta(struct timeval *, struct timeval *);
 
 
 void
-game_draw(struct game *g, int width, int height)
+deinit(struct game *g)
+{
+    tcsetattr(STDIN_FILENO, TCSANOW, &g->display.term_orig);
+    printf("\e[?12l\e[?25h");  /* cnorm */
+}
+
+void
+draw(struct game *g)
 {
     double hole_world_center, hole_min, hole_max;
-    int y;
+    int x, y;
     size_t i;
 
-    (void)width;
-
-    mvaddch(height / 2 + g->player.y, g->player.x, '@');
+    pixel(g, g->player.x, g->display.height / 2 + g->player.y, '@');
 
     for (i = 0; i < g->world.walls_n; i++)
     {
-        hole_world_center = height / 2 + g->world.walls[i].hole_center;
+        hole_world_center = g->display.height / 2 + g->world.walls[i].hole_center;
         hole_min = hole_world_center - g->world.walls[i].hole_radius;
         hole_max = hole_world_center + g->world.walls[i].hole_radius;
 
-        for (y = 0; y < height; y++)
+        for (y = 0; y < g->display.height; y++)
         {
             if (y < hole_min || y > hole_max)
             {
-                mvaddch(y, g->world.walls[i].x, '|');
+                pixel(g, g->world.walls[i].x, y, '#');
             }
         }
     }
 
-    //mvprintw(0, 0, "a = %f", g->player.a);
-    //mvprintw(1, 0, "v = %f", g->player.v);
-    //mvprintw(2, 0, "y = %f", g->player.y);
+    printf("\e[1;1H");  /* top left */
+    for (y = 0; y < g->display.height; y++)
+        for (x = 0; x < g->display.width; x++)
+            putchar(g->display.data[y * g->display.width + x]);
+    fflush(stdout);
+}
+
+int
+getch(void)
+{
+    char c;
+    struct timeval tv;
+    fd_set fds;
+
+    tv.tv_sec = 0;
+    tv.tv_usec = 0;
+    FD_ZERO(&fds);
+    FD_SET(STDIN_FILENO, &fds);
+
+    select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv);
+
+    if (FD_ISSET(STDIN_FILENO, &fds))
+    {
+        read(STDIN_FILENO, &c, 1);
+        return (int)c;
+    }
+    else
+        return -1;
 }
 
 void
-game_init(struct game *g)
+erase(struct game *g)
 {
-    g->fps = 60;
+    memset(g->display.data, ' ', g->display.width * g->display.height);
+}
+
+void
+init(struct game *g)
+{
+    if (!isatty(STDIN_FILENO) || !isatty(STDOUT_FILENO))
+    {
+        fprintf(stderr, "Are we really connected to a terminal?\n");
+        exit(1);
+    }
+
+    tcgetattr(STDIN_FILENO, &g->display.term_orig);
+    g->display.term_raw = g->display.term_orig;
+    cfmakeraw(&g->display.term_raw);
+    tcsetattr(STDIN_FILENO, TCSANOW, &g->display.term_raw);
+
+    printf("\e[?25l");  /* civis */
+
+    g->display.fps = 60;
+    g->display.width = g->display.height = 0;
+    g->display.data = NULL;
 
     g->player.v = 0;
     g->player.a = 40;
@@ -87,13 +151,17 @@ game_init(struct game *g)
     g->world.walls_n = 4;  /* XXX increase to 1024 */
     g->world.walls = calloc(g->world.walls_n, sizeof(struct wall));
     if (g->world.walls == NULL)
-        abort();
-    game_make_walls(g);
+    {
+        fprintf(stderr, "Could not allocate memory for walls\n");
+        exit(1);
+    }
+
+    make_walls(g);
     g->world.wall_v = 10;
 }
 
 void
-game_input(struct game *g, int ch)
+input(struct game *g, int ch)
 {
     if (ch == ' ')
     {
@@ -103,7 +171,7 @@ game_input(struct game *g, int ch)
 }
 
 void
-game_make_walls(struct game *g)
+make_walls(struct game *g)
 {
     g->world.wall_first = 0;
 
@@ -125,7 +193,41 @@ game_make_walls(struct game *g)
 }
 
 void
-game_tick(struct game *g)
+pixel(struct game *g, int x, int y, char c)
+{
+    if (x < 0 || x >= g->display.width || y < 0 || y >= g->display.height)
+        return;
+
+    g->display.data[y * g->display.width + x] = c;
+}
+
+void
+resize_and_clear(struct game *g)
+{
+    struct winsize w;
+
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+    if (w.ws_col != g->display.width || w.ws_row != g->display.height)
+    {
+        if (g->display.data != NULL)
+            free(g->display.data);
+
+        g->display.data = malloc(w.ws_col * w.ws_row);
+        if (g->display.data == NULL)
+        {
+            fprintf(stderr, "Could not allocate memory for display data\n");
+            exit(1);
+        }
+    }
+
+    g->display.width = w.ws_col;
+    g->display.height = w.ws_row;
+
+    erase(g);
+}
+
+void
+tick(struct game *g)
 {
     double dt;
     struct timeval t2;
@@ -144,7 +246,7 @@ game_tick(struct game *g)
     {
         for (i = 0; i < g->world.walls_n - 1; i++)
             g->world.walls[i] = g->world.walls[i + 1];
-        bzero(&g->world.walls[g->world.walls_n - 1], sizeof(struct wall));
+        memset(&g->world.walls[g->world.walls_n - 1], 0, sizeof(struct wall));
     }
 
     g->t = t2;
@@ -161,35 +263,27 @@ int
 main()
 {
     int ch;
-    int width, height;
     struct game g;
 
-    initscr();
-    noecho();
-    raw();
-    timeout(0);
-    curs_set(0);
-
-    game_init(&g);
+    init(&g);
 
     for (;;)
     {
-        erase();
-        getmaxyx(stdscr, height, width);
+        resize_and_clear(&g);
 
         ch = getch();
         if (ch == 0x03)  /* ^C */
             break;
 
-        game_draw(&g, width, height);
-        game_input(&g, ch);
-        game_tick(&g);
+        draw(&g);
 
-        refresh();
-        usleep(1.0 / g.fps * 1000 * 1000);
+        input(&g, ch);
+        tick(&g);
+
+        usleep(1.0 / g.display.fps * 1000 * 1000);
     }
 
-    endwin();
+    deinit(&g);
 
     return 0;
 }
