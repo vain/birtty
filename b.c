@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,6 +39,7 @@ struct game
         size_t walls_n;
         size_t wall_first;
         double wall_v;
+        long int wall_seed;
     } world;
 };
 
@@ -47,7 +49,6 @@ static void erase(struct game *);
 static int getch(void);
 static void init(struct game *);
 static void input(struct game *, int);
-static void make_walls(struct game *);
 static void pixel(struct game *, int, int, char);
 static void resize_and_clear(struct game *);
 static void tick(struct game *);
@@ -72,7 +73,7 @@ draw(struct game *g)
 
     pixel(g, g->player.x, g->display.height / 2 + g->player.y, '@');
 
-    for (i = 0; i < g->world.walls_n; i++)
+    for (i = g->world.wall_first; i < g->world.walls_n; i++)
     {
         hole_world_center = g->display.height / 2 + g->world.walls[i].hole_center;
         hole_min = hole_world_center - g->world.walls[i].hole_radius;
@@ -126,6 +127,10 @@ erase(struct game *g)
 void
 init(struct game *g)
 {
+    size_t i;
+    double process;
+    int x;
+
     if (!isatty(STDIN_FILENO) || !isatty(STDOUT_FILENO))
     {
         fprintf(stderr, "Are we really connected to a terminal?\n");
@@ -145,12 +150,15 @@ init(struct game *g)
     g->display.data = NULL;
 
     g->player.v = 0;
-    g->player.a = 40;
+    g->player.a = 100;
     g->player.x = 5;
     g->player.y = 0;
 
     gettimeofday(&g->t, NULL);
-    g->world.walls_n = 4;  /* XXX increase to 1024 */
+
+    g->world.wall_v = 30;
+    g->world.wall_first = 0;
+    g->world.walls_n = 1024;
     g->world.walls = calloc(g->world.walls_n, sizeof(struct wall));
     if (g->world.walls == NULL)
     {
@@ -158,8 +166,19 @@ init(struct game *g)
         exit(1);
     }
 
-    make_walls(g);
-    g->world.wall_v = 10;
+    srand48(g->world.wall_seed);
+    x = 50;
+    for (i = 0; i < g->world.walls_n; i++)
+    {
+        process = (double)(i + 1) / g->world.walls_n;
+        process = sqrt(sqrt(process));
+
+        g->world.walls[i].x = x;
+        g->world.walls[i].hole_center = (drand48() * 2 - 1) * process * 20;
+        g->world.walls[i].hole_radius = (1 - process) * 10 + process;
+
+        x += (1 - process) * 50 + process * 5;
+    }
 }
 
 void
@@ -170,28 +189,6 @@ input(struct game *g, int ch)
         g->player.y -= 2;
         g->player.v = -5;
     }
-}
-
-void
-make_walls(struct game *g)
-{
-    g->world.wall_first = 0;
-
-    g->world.walls[0].x = 50;
-    g->world.walls[0].hole_center = -10;
-    g->world.walls[0].hole_radius = 4;
-
-    g->world.walls[1].x = 70;
-    g->world.walls[1].hole_center = 2;
-    g->world.walls[1].hole_radius = 4;
-
-    g->world.walls[2].x = 90;
-    g->world.walls[2].hole_center = 0;
-    g->world.walls[2].hole_radius = 4;
-
-    g->world.walls[3].x = 110;
-    g->world.walls[3].hole_center = 10;
-    g->world.walls[3].hole_radius = 4;
 }
 
 void
@@ -241,14 +238,18 @@ tick(struct game *g)
     g->player.v += g->player.a * dt;
     g->player.y += g->player.v * dt;
 
-    for (i = 0; i < g->world.walls_n; i++)
+    for (i = g->world.wall_first; i < g->world.walls_n; i++)
         g->world.walls[i].x -= g->world.wall_v * dt;
 
-    while (g->world.walls[0].x < 0)
+    while (g->world.walls[g->world.wall_first].x < 0)
     {
-        for (i = 0; i < g->world.walls_n - 1; i++)
-            g->world.walls[i] = g->world.walls[i + 1];
-        memset(&g->world.walls[g->world.walls_n - 1], 0, sizeof(struct wall));
+        g->world.wall_first++;
+        if (g->world.wall_first == g->world.walls_n)
+        {
+            deinit(g);
+            printf("You actually did it! You won the game.\n");
+            exit(0);
+        }
     }
 
     g->t = t2;
@@ -262,10 +263,15 @@ time_delta(struct timeval *t1, struct timeval *t2)
 
 
 int
-main()
+main(int argc, char **argv)
 {
     int ch;
     struct game g;
+
+    if (argc > 1)
+        g.world.wall_seed = strtol(argv[1], NULL, 10);
+    else
+        g.world.wall_seed = 0;
 
     init(&g);
 
