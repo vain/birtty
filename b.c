@@ -10,6 +10,8 @@
 
 struct game
 {
+    char paused;
+
     struct display
     {
         int fps;
@@ -77,7 +79,7 @@ deinit(struct game *g)
 void
 draw(struct game *g)
 {
-    char score[64], *p;
+    char score[64], *p, *paused = " P A U S E D ";
     double hole_world_center, hole_min, hole_max;
     int x, y;
     size_t i;
@@ -108,6 +110,10 @@ draw(struct game *g)
     score[0] = '+';
     draw_string(g, g->display.width - strlen(score) - 2, 1, score);
     draw_string(g, g->display.width - strlen(score) - 2, 3, score);
+
+    if (g->paused)
+        draw_string(g, 0.5 * (g->display.width - strlen(paused)),
+                    g->display.height / 2, paused);
 
     printf("\e[1;1H");  /* top left */
     for (y = 0; y < g->display.height; y++)
@@ -186,6 +192,8 @@ init(struct game *g)
     printf("\e[?25l");    /* civis */
     printf("\e[?1049h");  /* enter secondary screen */
 
+    g->paused = 0;
+
     g->display.fps = 60;
     g->display.width = g->display.height = 0;
     g->display.data = NULL;
@@ -242,7 +250,7 @@ init(struct game *g)
 void
 input(struct game *g, int ch)
 {
-    if (ch == ' ')
+    if (!g->paused && ch == ' ')
     {
         g->player.y -= 2;
         g->player.v = -5;
@@ -304,6 +312,9 @@ tick(struct game *g)
     gettimeofday(&t2, NULL);
     dt = time_delta(&g->t, &t2);
 
+    if (g->paused)
+        goto update_time;
+
     g->player.v += g->player.a * dt;
     g->player.y += g->player.v * dt;
 
@@ -337,6 +348,7 @@ tick(struct game *g)
                 player_crash(g);
     }
 
+update_time:
     g->t = t2;
 }
 
@@ -368,6 +380,8 @@ main(int argc, char **argv)
         ch = getch();
         if (ch == 0x03)  /* ^C */
             break;
+        else if (ch == 'p')
+            g.paused = !g.paused;
 
         draw(&g);
 
