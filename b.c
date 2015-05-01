@@ -45,11 +45,12 @@ struct game
 
 static void deinit(struct game *);
 static void draw(struct game *);
+static void draw_pixel(struct game *, int, int, char);
+static void draw_string(struct game *, int, int, char *);
 static void erase(struct game *);
 static int getch(void);
 static void init(struct game *);
 static void input(struct game *, int);
-static void pixel(struct game *, int, int, char);
 static void player_crash(struct game *);
 static void player_win(struct game *);
 static void resize_and_clear(struct game *);
@@ -69,11 +70,12 @@ deinit(struct game *g)
 void
 draw(struct game *g)
 {
+    char score[64], *p;
     double hole_world_center, hole_min, hole_max;
     int x, y;
     size_t i;
 
-    pixel(g, g->player.x, g->display.height / 2 + g->player.y, '@');
+    draw_pixel(g, g->player.x, g->display.height / 2 + g->player.y, '@');
 
     for (i = g->world.wall_first; i < g->world.walls_n; i++)
     {
@@ -83,14 +85,44 @@ draw(struct game *g)
 
         for (y = 0; y < g->display.height; y++)
             if (y < hole_min || y > hole_max)
-                pixel(g, g->world.walls[i].x, y, '#');
+                draw_pixel(g, g->world.walls[i].x, y, '#');
     }
+
+    snprintf(score, sizeof(score), "| Score: %ld |", g->world.wall_first);
+    draw_string(g, 2, 2, score);
+    for (p = score; *p; p++)
+        *p = '-';
+    p--;
+    *p = '+';
+    score[0] = '+';
+    draw_string(g, 2, 1, score);
+    draw_string(g, 2, 3, score);
 
     printf("\e[1;1H");  /* top left */
     for (y = 0; y < g->display.height; y++)
         for (x = 0; x < g->display.width; x++)
             putchar(g->display.data[y * g->display.width + x]);
     fflush(stdout);
+}
+
+void
+draw_pixel(struct game *g, int x, int y, char c)
+{
+    if (x < 0 || x >= g->display.width || y < 0 || y >= g->display.height)
+        return;
+
+    g->display.data[y * g->display.width + x] = c;
+}
+
+void
+draw_string(struct game *g, int x, int y, char *s)
+{
+    int l = strlen(s) > 1024 ? 1024 : (int)strlen(s);
+
+    if (x < 0 || x + l > g->display.width || y < 0 || y >= g->display.height)
+        return;
+
+    memcpy(&g->display.data[y * g->display.width + x], s, l);
 }
 
 int
@@ -187,15 +219,6 @@ input(struct game *g, int ch)
         g->player.y -= 2;
         g->player.v = -5;
     }
-}
-
-void
-pixel(struct game *g, int x, int y, char c)
-{
-    if (x < 0 || x >= g->display.width || y < 0 || y >= g->display.height)
-        return;
-
-    g->display.data[y * g->display.width + x] = c;
 }
 
 void
