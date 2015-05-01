@@ -100,14 +100,14 @@ draw(struct game *g)
     }
 
     snprintf(score, sizeof(score), "| Score: %ld |", g->world.wall_first);
-    draw_string(g, 2, 2, score);
+    draw_string(g, g->display.width - strlen(score) - 2, 2, score);
     for (p = score; *p; p++)
         *p = '-';
     p--;
     *p = '+';
     score[0] = '+';
-    draw_string(g, 2, 1, score);
-    draw_string(g, 2, 3, score);
+    draw_string(g, g->display.width - strlen(score) - 2, 1, score);
+    draw_string(g, g->display.width - strlen(score) - 2, 3, score);
 
     printf("\e[1;1H");  /* top left */
     for (y = 0; y < g->display.height; y++)
