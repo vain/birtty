@@ -1,0 +1,48 @@
+
+                                     ======
+                                     birtty
+                                     ======
+
+
+Try not to crash that bird.
+
+Controls:
+
+    space  --  flap up
+    p      --  (un)pause game
+    ^C     --  abort game
+
+Map generation:
+
+    The walls are placed randomly. However, you can set the seed of the random
+    number generator:
+
+        Default level:
+
+            $ ./birtty
+
+        Level 7239:
+
+            $ ./birtty 7239
+
+    Thus, like in the good old DOS game "Worms", you can choose between a huge
+    number of different maps.
+
+Score:
+
+    Your score increases by one with each wall you have passed. Try to maximize
+    your score. Be aware, though, that birtty follows to spirit of many old
+    games: It just gets harder and harder, until you lose.
+
+Dependencies:
+
+    A modern POSIX OS and a VT-ish terminal should be sufficient. birtty has
+    been written on Arch Linux and tested on OpenBSD 5.6. Your terminal should
+    be at least 80 characters wide and 50 characters high.
+
+
+birtty was inspired by itsdogtime's "@y bird" [1], which, in turn, is a clone of
+"Flappy Bird" [2].
+
+[1] https://github.com/itsdogtime/-y-bird
+[2] https://en.wikipedia.org/wiki/Flappy_Bird
