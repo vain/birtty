@@ -39,6 +39,7 @@ struct game
         struct wall
         {
             double x;
+            double w;
             double hole_center;
             double hole_radius;
         } *walls;
@@ -90,9 +91,12 @@ draw(struct game *g)
         hole_min = hole_world_center - g->world.walls[i].hole_radius;
         hole_max = hole_world_center + g->world.walls[i].hole_radius;
 
-        for (y = 0; y < g->display.height; y++)
-            if (y < hole_min || y > hole_max)
-                draw_pixel(g, g->world.walls[i].x, y, '#');
+        for (x = g->world.walls[i].x - g->world.walls[i].w + 1;
+             x <= g->world.walls[i].x;
+             x++)
+            for (y = 0; y < g->display.height; y++)
+                if (y < hole_min || y > hole_max)
+                    draw_pixel(g, x, y, '#');
     }
 
     snprintf(score, sizeof(score), "| Score: %ld |", g->world.wall_first);
@@ -165,7 +169,7 @@ void
 init(struct game *g)
 {
     size_t i;
-    double process;
+    double process, process1, process3;
     int x;
 
     if (!isatty(STDIN_FILENO) || !isatty(STDOUT_FILENO))
@@ -210,7 +214,7 @@ init(struct game *g)
 
     g->world.wall_v = 30;
     g->world.wall_first = 0;
-    g->world.walls_n = 1024;
+    g->world.walls_n = 128;
     g->world.walls = calloc(g->world.walls_n, sizeof(struct wall));
     if (g->world.walls == NULL)
     {
@@ -223,13 +227,15 @@ init(struct game *g)
     for (i = 0; i < g->world.walls_n; i++)
     {
         process = (double)(i + 1) / g->world.walls_n;
-        process = sqrt(sqrt(process));
+        process1 = sqrt(process);
+        process3 = sqrt(sqrt(sqrt(process)));
 
         g->world.walls[i].x = x;
-        g->world.walls[i].hole_center = (drand48() * 2 - 1) * process * 20;
-        g->world.walls[i].hole_radius = (1 - process) * 10 + process;
+        g->world.walls[i].w = (1 - process1) * 4 + process1 * 28;
+        g->world.walls[i].hole_center = (drand48() * 2 - 1) * process1 * 20;
+        g->world.walls[i].hole_radius = (1 - process3) * 13 + process3 * 2;
 
-        x += (1 - process) * 50 + process * 5;
+        x += (1 - process3) * 90 + process3 * 40;
     }
 }
 
@@ -319,16 +325,15 @@ tick(struct game *g)
             player_win(g);
     }
 
-    /* XXX This part is very similar to draw(). Refactor. */
     for (i = g->world.wall_first; i < g->world.walls_n; i++)
     {
         hole_world_center = g->display.height / 2 + g->world.walls[i].hole_center;
         hole_min = hole_world_center - g->world.walls[i].hole_radius;
         hole_max = hole_world_center + g->world.walls[i].hole_radius;
 
-        if (g->world.walls[i].x >= g->player.x &&
-            g->world.walls[i].x < g->player.x + 1)
-            if (player_world_y < hole_min || player_world_y > hole_max)
+        if ((int)g->player.x >= (int)(g->world.walls[i].x - g->world.walls[i].w) &&
+            (int)g->player.x <= (int)g->world.walls[i].x)
+            if ((int)player_world_y < (int)hole_min || (int)player_world_y > (int)hole_max)
                 player_crash(g);
     }
 
