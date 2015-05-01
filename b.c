@@ -50,6 +50,8 @@ static int getch(void);
 static void init(struct game *);
 static void input(struct game *, int);
 static void pixel(struct game *, int, int, char);
+static void player_crash(struct game *);
+static void player_win(struct game *);
 static void resize_and_clear(struct game *);
 static void tick(struct game *);
 
@@ -201,6 +203,22 @@ pixel(struct game *g, int x, int y, char c)
 }
 
 void
+player_crash(struct game *g)
+{
+    deinit(g);
+    printf("You crashed. Score: %ld\n", g->world.wall_first);
+    exit(0);
+}
+
+void
+player_win(struct game *g)
+{
+    deinit(g);
+    printf("You actually did it! You won the game.\n");
+    exit(0);
+}
+
+void
 resize_and_clear(struct game *g)
 {
     struct winsize w;
@@ -231,12 +249,18 @@ tick(struct game *g)
     double dt;
     struct timeval t2;
     size_t i;
+    double hole_world_center, hole_min, hole_max;
+    double player_world_y;
 
     gettimeofday(&t2, NULL);
     dt = time_delta(&g->t, &t2);
 
     g->player.v += g->player.a * dt;
     g->player.y += g->player.v * dt;
+
+    player_world_y = g->display.height / 2 + g->player.y;
+    if (player_world_y < 0 || player_world_y >= g->display.height)
+        player_crash(g);
 
     for (i = g->world.wall_first; i < g->world.walls_n; i++)
         g->world.walls[i].x -= g->world.wall_v * dt;
@@ -245,10 +269,23 @@ tick(struct game *g)
     {
         g->world.wall_first++;
         if (g->world.wall_first == g->world.walls_n)
+            player_win(g);
+    }
+
+    /* XXX This part is very similar to draw(). Refactor. */
+    for (i = g->world.wall_first; i < g->world.walls_n; i++)
+    {
+        hole_world_center = g->display.height / 2 + g->world.walls[i].hole_center;
+        hole_min = hole_world_center - g->world.walls[i].hole_radius;
+        hole_max = hole_world_center + g->world.walls[i].hole_radius;
+
+        if (g->world.walls[i].x >= g->player.x &&
+            g->world.walls[i].x < g->player.x + 1)
         {
-            deinit(g);
-            printf("You actually did it! You won the game.\n");
-            exit(0);
+            if (player_world_y < hole_min || player_world_y > hole_max)
+            {
+                player_crash(g);
+            }
         }
     }
 
