@@ -26,6 +26,12 @@ struct game
         double a;
         double x;
         double y;
+
+        struct timeval ani_t0;
+        size_t ani_i;
+        size_t ani_n;
+        double ani_ms_per_frame;
+        char **ani;
     } player;
 
     struct world
@@ -75,7 +81,8 @@ draw(struct game *g)
     int x, y;
     size_t i;
 
-    draw_pixel(g, g->player.x, g->display.height / 2 + g->player.y, '@');
+    draw_string(g, g->player.x, g->display.height / 2 + g->player.y,
+                g->player.ani[g->player.ani_i]);
 
     for (i = g->world.wall_first; i < g->world.walls_n; i++)
     {
@@ -184,7 +191,22 @@ init(struct game *g)
     g->player.x = 5;
     g->player.y = 0;
 
+    g->player.ani_ms_per_frame = 500;
+    g->player.ani_n = 4;
+    g->player.ani_i = 0;
+    g->player.ani = malloc(sizeof(char *) * g->player.ani_n);
+    if (g->player.ani == NULL)
+    {
+        fprintf(stderr, "Could not allocate memory for player animation\n");
+        exit(1);
+    }
+    g->player.ani[0] = "^`>";
+    g->player.ani[1] = "-`>";
+    g->player.ani[2] = "v`>";
+    g->player.ani[3] = "-`>";
+
     gettimeofday(&g->t, NULL);
+    g->player.ani_t0 = g->t;
 
     g->world.wall_v = 30;
     g->world.wall_first = 0;
@@ -267,7 +289,7 @@ resize_and_clear(struct game *g)
 void
 tick(struct game *g)
 {
-    double dt;
+    double dt, adt;
     struct timeval t2;
     size_t i;
     double hole_world_center, hole_min, hole_max;
@@ -278,6 +300,10 @@ tick(struct game *g)
 
     g->player.v += g->player.a * dt;
     g->player.y += g->player.v * dt;
+
+    adt = time_delta(&g->player.ani_t0, &t2);
+    g->player.ani_i = (int)(adt * 1000 / g->player.ani_ms_per_frame) %
+                      g->player.ani_n;
 
     player_world_y = g->display.height / 2 + g->player.y;
     if (player_world_y < 0 || player_world_y >= g->display.height)
