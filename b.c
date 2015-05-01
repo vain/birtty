@@ -60,6 +60,7 @@ deinit(struct game *g)
 {
     tcsetattr(STDIN_FILENO, TCSANOW, &g->display.term_orig);
     printf("\e[?12l\e[?25h");  /* cnorm */
+    printf("\e[?1049l");       /* leave secondary screen */
 }
 
 void
@@ -136,7 +137,8 @@ init(struct game *g)
     cfmakeraw(&g->display.term_raw);
     tcsetattr(STDIN_FILENO, TCSANOW, &g->display.term_raw);
 
-    printf("\e[?25l");  /* civis */
+    printf("\e[?25l");    /* civis */
+    printf("\e[?1049h");  /* enter secondary screen */
 
     g->display.fps = 60;
     g->display.width = g->display.height = 0;
