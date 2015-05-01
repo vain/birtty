@@ -224,6 +224,7 @@ input(struct game *g, int ch)
 void
 player_crash(struct game *g)
 {
+    usleep(1000 * 1000);
     deinit(g);
     printf("You crashed. Score: %ld\n", g->world.wall_first);
     exit(0);
@@ -232,6 +233,7 @@ player_crash(struct game *g)
 void
 player_win(struct game *g)
 {
+    usleep(1000 * 1000);
     deinit(g);
     printf("You actually did it! You won the game.\n");
     exit(0);
