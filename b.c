@@ -82,12 +82,8 @@ draw(struct game *g)
         hole_max = hole_world_center + g->world.walls[i].hole_radius;
 
         for (y = 0; y < g->display.height; y++)
-        {
             if (y < hole_min || y > hole_max)
-            {
                 pixel(g, g->world.walls[i].x, y, '#');
-            }
-        }
     }
 
     printf("\e[1;1H");  /* top left */
@@ -281,12 +277,8 @@ tick(struct game *g)
 
         if (g->world.walls[i].x >= g->player.x &&
             g->world.walls[i].x < g->player.x + 1)
-        {
             if (player_world_y < hole_min || player_world_y > hole_max)
-            {
                 player_crash(g);
-            }
-        }
     }
 
     g->t = t2;
@@ -295,7 +287,8 @@ tick(struct game *g)
 double
 time_delta(struct timeval *t1, struct timeval *t2)
 {
-    return (t2->tv_sec - t1->tv_sec) + (double)(t2->tv_usec - t1->tv_usec) / 1000 / 1000;
+    return (t2->tv_sec - t1->tv_sec) +
+           (double)(t2->tv_usec - t1->tv_usec) / 1000 / 1000;
 }
 
 
