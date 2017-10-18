@@ -37,8 +37,8 @@ Score:
 Dependencies:
 
     A modern POSIX OS and a VT-ish terminal should be sufficient. birtty has
-    been written on Arch Linux and tested on OpenBSD 5.7. Your terminal should
-    be at least 80 characters wide and 50 characters high.
+    been written on Arch Linux. Your terminal should be at least 80 characters
+    wide and 50 characters high.
 
 
 birtty was inspired by itsdogtime's "@y bird" [1], which, in turn, is a clone of
