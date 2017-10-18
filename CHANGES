@@ -1,0 +1,11 @@
+Release history for birtty
+
+next
+  [LICENSING]
+  - The project has been relicensed under the MIT license (more
+    precisely called "Expat License", but everyone calls it "MIT
+    license" these days).
+
+v15.05  2015-05-02
+  - Sorry, the CHANGES file did not exist back then. Please refer to the
+    Git log.
